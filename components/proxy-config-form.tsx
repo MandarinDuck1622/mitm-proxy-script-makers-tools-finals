@@ -738,7 +738,7 @@ addons = [UpstreamProxy()]
               <Label htmlFor="targetDomain">Target Domain</Label>
               <Input
                 id="targetDomain"
-                placeholder="ibbiz-api.dev.bri.co.id"
+                placeholder=".com"
                 value={config.targetDomain}
                 onChange={(e) => handleInputChange("targetDomain", e.target.value)}
               />
@@ -747,7 +747,7 @@ addons = [UpstreamProxy()]
               <Label htmlFor="targetUrl">Target URL</Label>
               <Input
                 id="targetUrl"
-                placeholder="https://ibbiz-api.dev.bri.co.id/endpoint"
+                placeholder=".com"
                 value={config.targetUrl}
                 onChange={(e) => handleInputChange("targetUrl", e.target.value)}
               />

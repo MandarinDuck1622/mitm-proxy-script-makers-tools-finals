@@ -10,8 +10,8 @@ export function Header() {
             <Terminal className="h-5 w-5 text-muted-foreground" />
           </div>
           <div>
-            <h1 className="text-xl font-semibold text-foreground">ProxyGen</h1>
-            <p className="text-sm text-muted-foreground">Security Testing Suite</p>
+            <h1 className="text-xl font-semibold text-foreground">MITMP</h1>
+            <p className="text-sm text-muted-foreground">Security Testing Suite for MITM Proxy</p>
           </div>
         </div>
       </div>
