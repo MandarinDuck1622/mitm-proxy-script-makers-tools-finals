@@ -13,7 +13,6 @@ import { Checkbox } from "@/components/ui/checkbox"
 import {
   Globe,
   Lock,
-  Unlock,
   Server,
   Zap,
   Search,
@@ -36,7 +35,6 @@ interface ProxyConfig {
   proxy1Port: string
   proxy2Host: string
   proxy2Port: string
-  enableBruteforce: boolean
   enableAutoScan: boolean
   customHeaders: string
 
@@ -123,7 +121,6 @@ export function ProxyConfigForm() {
     proxy1Port: "8083",
     proxy2Host: "127.0.0.1",
     proxy2Port: "5005",
-    enableBruteforce: false,
     enableAutoScan: false,
     customHeaders: "",
 
@@ -648,7 +645,6 @@ class UpstreamProxy:
         self.burp_host = "${config.proxy2Host}"
         self.burp_port = "${config.proxy2Port}"
         self.auto_scan = ${config.enableAutoScan}
-        self.bruteforce = ${config.enableBruteforce}
         ${config.replayAttack ? `self.replay_count = ${config.replayCount}` : ""}
         
     def request(self, flow: http.HTTPFlow) -> None:
@@ -660,16 +656,6 @@ class UpstreamProxy:
         # Auto-scan functionality
         if self.auto_scan:
             self.perform_vulnerability_scan(flow)
-        `
-            : ""
-        }
-        
-        ${
-          config.enableBruteforce
-            ? `
-        # Brute force functionality
-        if self.bruteforce and "login" in flow.request.path:
-            self.perform_bruteforce(flow)
         `
             : ""
         }
@@ -738,7 +724,7 @@ addons = [UpstreamProxy()]
               <Label htmlFor="targetDomain">Target Domain</Label>
               <Input
                 id="targetDomain"
-                placeholder=".com"
+                placeholder=".com isi disini"
                 value={config.targetDomain}
                 onChange={(e) => handleInputChange("targetDomain", e.target.value)}
               />
@@ -747,7 +733,7 @@ addons = [UpstreamProxy()]
               <Label htmlFor="targetUrl">Target URL</Label>
               <Input
                 id="targetUrl"
-                placeholder=".com"
+                placeholder=".com isi disini"
                 value={config.targetUrl}
                 onChange={(e) => handleInputChange("targetUrl", e.target.value)}
               />
@@ -877,20 +863,6 @@ addons = [UpstreamProxy()]
             <Switch
               checked={config.enableAutoScan}
               onCheckedChange={(checked) => handleInputChange("enableAutoScan", checked)}
-            />
-          </div>
-          <Separator />
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label className="flex items-center gap-2">
-                <Unlock className="h-4 w-4" />
-                Brute Force (Optional)
-              </Label>
-              <p className="text-sm text-muted-foreground">Enable brute force capabilities for login endpoints</p>
-            </div>
-            <Switch
-              checked={config.enableBruteforce}
-              onCheckedChange={(checked) => handleInputChange("enableBruteforce", checked)}
             />
           </div>
           <Separator />
