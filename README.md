@@ -1,30 +1,33 @@
-# Script generation UI
+proxy1 command run:
+mitmdump -s proxy1.py -p 8083 --mode upstream:http://127.0.0.1:8080 --ssl-insecure
 
-*Automatically synced with your [v0.app](https://v0.app) deployments*
+proxy2 command run:
+mitmdump -s proxy2.py -p 8084 --ssl-insecure
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/harrisonmatthewwidjaja-6414s-projects/v0-script-generation-ui)
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.app-black?style=for-the-badge)](https://v0.app/chat/projects/R2kIGiuiyxs)
+util command run:
+python util.py
 
-## Overview
+Description
+Introduction
+Malaysia's cyber security ecosystem has been transformed with the advent of the Cyber Security Act 2024, and this has created new demands for veteran professionals and easy-to-use security testing software. Current market products like Burp Suite Professional present significant barriers like exorbitant pricing, cluttered menus, and steep learning curves that are deterring usage by students and beginner penetration testers.
+This project addresses these requirements by developing an open-source, education-dedicated MITM proxy tool for the Malaysian cybersecurity ecosystem. The tool is both a hands-on security testing platform and teaching resource, enabling cybersecurity capacity building in support of UN Sustainable Development Goal 9 (Industry, Innovation and Infrastructure).
+The timing is particularly suitable with Malaysia's MyDigital vision and the increasing demand for cybersecurity professionals. Through the creation of a localized, user-friendly tool, this project is driving Malaysia's digitalization forward while fostering innovation in cybersecurity education.
 
-This repository will stay in sync with your deployed chats on [v0.app](https://v0.app).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.app](https://v0.app).
+Aim
+To develop a comprehensive, user-friendly Man-in-the-Middle (MITM) proxy tool for bersecurity education and authorized penetration testing in Malaysia, while contributing to the nation's cybersecurity capacity building efforts in alignment with sustainable development goals.
 
-## Deployment
+Targeted Users
+- Cybersecurity Students (University & College Level)
+- Beginner Penetration Testers
+- Cybersecurity Educators and Trainers
+- Professional Penetration Testers
+- Small and Medium Enterprises (SMEs) in Malaysia
+- Cybersecurity Researchers
 
-Your project is live at:
-
-**[https://vercel.com/harrisonmatthewwidjaja-6414s-projects/v0-script-generation-ui](https://vercel.com/harrisonmatthewwidjaja-6414s-projects/v0-script-generation-ui)**
-
-## Build your app
-
-Continue building your app on:
-
-**[https://v0.app/chat/projects/R2kIGiuiyxs](https://v0.app/chat/projects/R2kIGiuiyxs)**
-
-## How It Works
-
-1. Create and modify your project using [v0.app](https://v0.app)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
+Objectives:
+- Develop Core MITM Proxy Functionality
+- Design Educational Framework
+- Ensure Malaysian Regulatory Compliance
+- Optimize User Experience and Accessibility
+SDGsdg9
+KeywordsForensic Analysis ToolsCybersecurityPhytonDigital Forensics CybersecurityCybersecurityEthical HackingEthical Hacking

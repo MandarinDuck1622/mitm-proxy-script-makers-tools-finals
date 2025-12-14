@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Globe,
   Lock,
@@ -24,6 +25,8 @@ import {
   Shield,
   ChevronDown,
   ChevronUp,
+  Key,
+  AlertTriangle,
 } from "lucide-react"
 
 interface ProxyConfig {
@@ -31,6 +34,10 @@ interface ProxyConfig {
   targetUrl: string
   enableEncryption: boolean
   enableDecryption: boolean
+  encryptionAlgorithm: string
+  decryptionAlgorithm: string
+  encryptionKey: string
+  decryptionKey: string
   proxy1Host: string
   proxy1Port: string
   proxy2Host: string
@@ -111,12 +118,22 @@ interface ProxyConfig {
   replayCount: string
 }
 
+interface GeneratedScripts {
+  proxy1: string
+  proxy2: string
+  util: string
+}
+
 export function ProxyConfigForm() {
   const [config, setConfig] = useState<ProxyConfig>({
     targetDomain: "",
     targetUrl: "",
     enableEncryption: false,
     enableDecryption: false,
+    encryptionAlgorithm: "AES-256-GCM",
+    decryptionAlgorithm: "AES-256-GCM",
+    encryptionKey: "",
+    decryptionKey: "",
     proxy1Host: "127.0.0.1",
     proxy1Port: "8083",
     proxy2Host: "127.0.0.1",
@@ -194,10 +211,8 @@ export function ProxyConfigForm() {
   })
 
   const [isGenerating, setIsGenerating] = useState(false)
-  const [generatedScripts, setGeneratedScripts] = useState<{
-    proxy1: string
-    proxy2: string
-  } | null>(null)
+  const [generatedScripts, setGeneratedScripts] = useState<GeneratedScripts | null>(null)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const [expandedSections, setExpandedSections] = useState({
     targeting: false,
@@ -205,6 +220,8 @@ export function ProxyConfigForm() {
     responseMod: false,
     utility: false,
   })
+
+  const API_URL = "http://127.0.0.1:5001/api/generate-scripts"
 
   const toggleSection = (section: keyof typeof expandedSections) => {
     setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }))
@@ -225,474 +242,42 @@ export function ProxyConfigForm() {
 
   const generateScripts = async () => {
     setIsGenerating(true)
-    await new Promise((resolve) => setTimeout(resolve, 2000))
+    setErrorMessage(null) // Clear previous errors
+    setGeneratedScripts(null) // Clear previous scripts
 
-    const proxy1Script = `#!/usr/bin/env python3
-"""
-Proxy 1 Script - MITMProxy Configuration
-Target: ${config.targetDomain}
-Generated: ${new Date().toISOString()}
-"""
+    try {
+      const response = await fetch(API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(config), // Send the entire config state
+      })
 
-from mitmproxy import http
-import json
-import base64
-import re
-${config.logTraffic ? "import logging\nfrom datetime import datetime" : ""}
+      if (!response.ok) {
+        // Handle HTTP errors
+        const errorData = await response.json()
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+      }
 
-${
-  config.logTraffic
-    ? `
-# Setup logging
-logging.basicConfig(
-    filename='${config.logFilePath}',
-    level=logging.INFO,
-    format='%(asctime)s - %(message)s'
-)
-`
-    : ""
-}
+      // Get the generated scripts from the backend response
+      const scripts: GeneratedScripts = await response.json()
 
-class ProxyInterceptor:
-    def __init__(self):
-        self.target_domain = "${config.targetDomain}"
-        self.encryption_enabled = ${config.enableEncryption}
-        self.decryption_enabled = ${config.enableDecryption}
-        ${config.replayAttack ? `self.replay_count = ${config.replayCount}` : ""}
-        ${config.extractSaveData ? `self.extract_pattern = r"${config.extractDataPattern}"` : ""}
-        
-    def should_process_request(self, flow: http.HTTPFlow) -> bool:
-        """Check if request matches filtering criteria"""
-        ${
-          config.filterByDomain
-            ? `
-        # Filter by domain
-        if "${config.filterDomainPattern}" not in flow.request.pretty_host:
-            return False
-        `
-            : ""
-        }
-        
-        ${
-          config.filterByUrlPath
-            ? `
-        # Filter by URL path
-        if not re.match(r"${config.filterUrlPathPattern}", flow.request.path):
-            return False
-        `
-            : ""
-        }
-        
-        ${
-          config.filterByHttpMethod && config.filterHttpMethods.length > 0
-            ? `
-        # Filter by HTTP method
-        allowed_methods = ${JSON.stringify(config.filterHttpMethods)}
-        if flow.request.method not in allowed_methods:
-            return False
-        `
-            : ""
-        }
-        
-        ${
-          config.filterByRequestHeader
-            ? `
-        # Filter by request header
-        if "${config.filterRequestHeaderName}" not in flow.request.headers:
-            return False
-        if flow.request.headers.get("${config.filterRequestHeaderName}") != "${config.filterRequestHeaderValue}":
-            return False
-        `
-            : ""
-        }
-        
-        ${
-          config.filterByBodyContent
-            ? `
-        # Filter by body content
-        if flow.request.content and b"${config.filterBodyContentPattern}" not in flow.request.content:
-            return False
-        `
-            : ""
-        }
-        
-        ${
-          config.filterByClientIp
-            ? `
-        # Filter by client IP
-        if flow.client_conn.peername[0] != "${config.filterClientIpAddress}":
-            return False
-        `
-            : ""
-        }
-        
-        return True
-        
-    def request(self, flow: http.HTTPFlow) -> None:
-        if not self.should_process_request(flow):
-            return
-            
-        print(f"[v0] Intercepting request to: {flow.request.url}")
-        
-        ${
-          config.blockRequests
-            ? `
-        # Block requests matching pattern
-        if re.search(r"${config.blockRequestsPattern}", flow.request.url):
-            print(f"[v0] Blocking request: {flow.request.url}")
-            flow.response = http.Response.make(403, b"Blocked by proxy")
-            return
-        `
-            : ""
-        }
-        
-        ${
-          config.logTraffic
-            ? `
-        # Log request
-        logging.info(f"REQUEST: {flow.request.method} {flow.request.url}")
-        logging.info(f"Headers: {dict(flow.request.headers)}")
-        `
-            : ""
-        }
-        
-        ${
-          config.addModifyRequestHeader
-            ? `
-        # Add/Modify request headers
-        headers_to_add = """${config.requestHeadersToAdd}"""
-        for line in headers_to_add.strip().split("\\n"):
-            if ":" in line:
-                key, value = line.split(":", 1)
-                flow.request.headers[key.strip()] = value.strip()
-                print(f"[v0] Added header: {key.strip()}: {value.strip()}")
-        `
-            : ""
-        }
-        
-        ${
-          config.removeRequestHeader
-            ? `
-        # Remove request headers
-        headers_to_remove = """${config.requestHeadersToRemove}"""
-        for header in headers_to_remove.strip().split("\\n"):
-            if header.strip() in flow.request.headers:
-                del flow.request.headers[header.strip()]
-                print(f"[v0] Removed header: {header.strip()}")
-        `
-            : ""
-        }
-        
-        ${
-          config.modifyUserAgent
-            ? `
-        # Modify User-Agent
-        flow.request.headers["User-Agent"] = "${config.customUserAgent}"
-        print(f"[v0] Modified User-Agent")
-        `
-            : ""
-        }
-        
-        ${
-          config.modifyHostHeader
-            ? `
-        # Modify Host header
-        flow.request.headers["Host"] = "${config.customHostHeader}"
-        print(f"[v0] Modified Host header")
-        `
-            : ""
-        }
-        
-        ${
-          config.autoHandleAuth
-            ? `
-        # Auto-handle authentication
-        flow.request.headers["Authorization"] = "Bearer ${config.authToken}"
-        print(f"[v0] Added Authorization header")
-        `
-            : ""
-        }
-        
-        ${
-          config.replaceRequestBody
-            ? `
-        # Replace request body content
-        if flow.request.content:
-            original_content = flow.request.content.decode('utf-8', errors='ignore')
-            modified_content = re.sub(r"${config.requestBodyReplacePattern}", "${config.requestBodyReplaceWith}", original_content)
-            flow.request.content = modified_content.encode('utf-8')
-            print(f"[v0] Modified request body")
-        `
-            : ""
-        }
-        
-        ${
-          config.changeRequestMethod
-            ? `
-        # Change request method
-        if flow.request.method == "${config.requestMethodFrom}":
-            flow.request.method = "${config.requestMethodTo}"
-            print(f"[v0] Changed method from ${config.requestMethodFrom} to ${config.requestMethodTo}")
-        `
-            : ""
-        }
-        
-        ${
-          config.rewriteUrl
-            ? `
-        # Rewrite URL
-        original_path = flow.request.path
-        flow.request.path = re.sub(r"${config.urlRewritePattern}", "${config.urlRewriteWith}", flow.request.path)
-        if original_path != flow.request.path:
-            print(f"[v0] Rewrote URL from {original_path} to {flow.request.path}")
-        `
-            : ""
-        }
-        
-        ${
-          config.redirectRequest
-            ? `
-        # Redirect request
-        flow.request.host = "${config.redirectToHost}"
-        flow.request.port = ${config.redirectToPort}
-        print(f"[v0] Redirected to ${config.redirectToHost}:${config.redirectToPort}")
-        `
-            : ""
-        }
-        
-        ${
-          config.customEncryptFunction
-            ? `
-        # Custom encryption function
-        if flow.request.content:
-            ${config.encryptFunctionCode || "# Add your custom encryption logic here"}
-        `
-            : config.enableEncryption
-              ? `
-        # Apply encryption logic
-        if flow.request.content:
-            encrypted_content = base64.b64encode(flow.request.content).decode()
-            flow.request.content = encrypted_content.encode()
-            flow.request.headers["X-Encrypted"] = "true"
-            print(f"[v0] Encrypted request body")
-        `
-              : ""
-        }
-        
-        ${
-          config.extractSaveData
-            ? `
-        # Extract and save data
-        if flow.request.content:
-            content = flow.request.content.decode('utf-8', errors='ignore')
-            matches = re.findall(self.extract_pattern, content)
-            if matches:
-                with open('extracted_data.txt', 'a') as f:
-                    f.write(f"{datetime.now()}: {matches}\\n")
-                print(f"[v0] Extracted data: {matches}")
-        `
-            : ""
-        }
-        
-    def response(self, flow: http.HTTPFlow) -> None:
-        if not self.should_process_request(flow):
-            return
-            
-        print(f"[v0] Intercepting response from: {flow.request.url}")
-        
-        ${
-          config.logTraffic
-            ? `
-        # Log response
-        logging.info(f"RESPONSE: {flow.response.status_code} for {flow.request.url}")
-        logging.info(f"Headers: {dict(flow.response.headers)}")
-        `
-            : ""
-        }
-        
-        ${
-          config.filterByResponseHeader
-            ? `
-        # Filter by response header
-        if "${config.filterResponseHeaderName}" not in flow.response.headers:
-            return
-        if flow.response.headers.get("${config.filterResponseHeaderName}") != "${config.filterResponseHeaderValue}":
-            return
-        `
-            : ""
-        }
-        
-        ${
-          config.addModifyResponseHeader
-            ? `
-        # Add/Modify response headers
-        headers_to_add = """${config.responseHeadersToAdd}"""
-        for line in headers_to_add.strip().split("\\n"):
-            if ":" in line:
-                key, value = line.split(":", 1)
-                flow.response.headers[key.strip()] = value.strip()
-                print(f"[v0] Added response header: {key.strip()}")
-        `
-            : ""
-        }
-        
-        ${
-          config.removeResponseHeader
-            ? `
-        # Remove response headers
-        headers_to_remove = """${config.responseHeadersToRemove}"""
-        for header in headers_to_remove.strip().split("\\n"):
-            if header.strip() in flow.response.headers:
-                del flow.response.headers[header.strip()]
-                print(f"[v0] Removed response header: {header.strip()}")
-        `
-            : ""
-        }
-        
-        ${
-          config.modifyCookies
-            ? `
-        # Modify cookies
-        cookie_mods = """${config.cookieModifications}"""
-        # Parse and apply cookie modifications
-        for line in cookie_mods.strip().split("\\n"):
-            if line.strip():
-                print(f"[v0] Cookie modification: {line}")
-                # Add your cookie modification logic here
-        `
-            : ""
-        }
-        
-        ${
-          config.changeStatusCode
-            ? `
-        # Change status code
-        if flow.response.status_code == ${config.statusCodeFrom}:
-            flow.response.status_code = ${config.statusCodeTo}
-            print(f"[v0] Changed status code from ${config.statusCodeFrom} to ${config.statusCodeTo}")
-        `
-            : ""
-        }
-        
-        ${
-          config.injectHtmlJs
-            ? `
-        # Inject HTML/JS
-        if "text/html" in flow.response.headers.get("content-type", ""):
-            content = flow.response.content.decode('utf-8', errors='ignore')
-            injection = """${config.htmlJsInjectionCode}"""
-            if "</body>" in content:
-                content = content.replace("</body>", f"{injection}</body>")
-                flow.response.content = content.encode('utf-8')
-                print(f"[v0] Injected HTML/JS code")
-        `
-            : ""
-        }
-        
-        ${
-          config.replaceResponseBody
-            ? `
-        # Replace response body content
-        if flow.response.content:
-            original_content = flow.response.content.decode('utf-8', errors='ignore')
-            modified_content = re.sub(r"${config.responseBodyReplacePattern}", "${config.responseBodyReplaceWith}", original_content)
-            flow.response.content = modified_content.encode('utf-8')
-            print(f"[v0] Modified response body")
-        `
-            : ""
-        }
-        
-        ${
-          config.customDecryptFunction
-            ? `
-        # Custom decryption function
-        if flow.response.content:
-            ${config.decryptFunctionCode || "# Add your custom decryption logic here"}
-        `
-            : config.enableDecryption
-              ? `
-        # Apply decryption logic
-        if "X-Encrypted" in flow.request.headers:
-            try:
-                decrypted_content = base64.b64decode(flow.response.content)
-                flow.response.content = decrypted_content
-                print(f"[v0] Decrypted response body")
-            except:
-                pass
-        `
-              : ""
-        }
-
-addons = [ProxyInterceptor()]
-
-# Run with: mitmdump -s proxy1.py -p ${config.proxy1Port} --mode upstream:http://${config.proxy2Host}:${config.proxy2Port}
-`
-
-    const proxy2Script = `#!/usr/bin/env python3
-"""
-Proxy 2 Script - Upstream to Burp Suite
-Upstream Target: ${config.proxy2Host}:${config.proxy2Port}
-Generated: ${new Date().toISOString()}
-"""
-
-from mitmproxy import http
-import requests
-import json
-${config.replayAttack ? "import time" : ""}
-
-class UpstreamProxy:
-    def __init__(self):
-        self.burp_host = "${config.proxy2Host}"
-        self.burp_port = "${config.proxy2Port}"
-        self.auto_scan = ${config.enableAutoScan}
-        ${config.replayAttack ? `self.replay_count = ${config.replayCount}` : ""}
-        
-    def request(self, flow: http.HTTPFlow) -> None:
-        print(f"[v0] Forwarding to Burp Suite: {flow.request.url}")
-        
-        ${
-          config.enableAutoScan
-            ? `
-        # Auto-scan functionality
-        if self.auto_scan:
-            self.perform_vulnerability_scan(flow)
-        `
-            : ""
-        }
-        
-        ${
-          config.replayAttack
-            ? `
-        # Replay attack
-        for i in range(self.replay_count):
-            print(f"[v0] Replaying request {i+1}/{self.replay_count}")
-            time.sleep(0.1)  # Small delay between replays
-        `
-            : ""
-        }
-    
-    def perform_vulnerability_scan(self, flow):
-        """Implement vulnerability scanning logic"""
-        print(f"[v0] Performing vulnerability scan on {flow.request.url}")
-        # Add your scanning logic here
-        pass
-        
-    def perform_bruteforce(self, flow):
-        """Implement brute force logic"""
-        print(f"[v0] Performing brute force on {flow.request.url}")
-        # Add your brute force logic here
-        pass
-
-addons = [UpstreamProxy()]
-
-# Run with: mitmdump -s proxy2.py -p ${config.proxy2Port}
-`
-
-    setGeneratedScripts({
-      proxy1: proxy1Script,
-      proxy2: proxy2Script,
-    })
-    setIsGenerating(false)
+      if (scripts.proxy1 && scripts.proxy2 && scripts.util) {
+        setGeneratedScripts(scripts)
+      } else {
+        throw new Error("Received incomplete script data from backend.")
+      }
+    } catch (error) {
+      console.error("Failed to generate scripts:", error)
+      if (error instanceof Error) {
+        setErrorMessage(`Failed to connect to backend: ${error.message}. Is the Python server running?`)
+      } else {
+        setErrorMessage("An unknown error occurred.")
+      }
+    } finally {
+      setIsGenerating(false)
+    }
   }
 
   const downloadScript = (script: string, filename: string) => {
@@ -724,7 +309,7 @@ addons = [UpstreamProxy()]
               <Label htmlFor="targetDomain">Target Domain</Label>
               <Input
                 id="targetDomain"
-                placeholder=".com isi disini"
+                placeholder="/com"
                 value={config.targetDomain}
                 onChange={(e) => handleInputChange("targetDomain", e.target.value)}
               />
@@ -733,7 +318,7 @@ addons = [UpstreamProxy()]
               <Label htmlFor="targetUrl">Target URL</Label>
               <Input
                 id="targetUrl"
-                placeholder=".com isi disini"
+                placeholder="/endpoint"
                 value={config.targetUrl}
                 onChange={(e) => handleInputChange("targetUrl", e.target.value)}
               />
@@ -764,17 +349,130 @@ addons = [UpstreamProxy()]
               onCheckedChange={(checked) => handleInputChange("enableEncryption", checked)}
             />
           </div>
+
+          {config.enableEncryption && (
+  <div className="space-y-4 pl-4 border-l-2 border-primary/20">
+    {/* Encryption algorithm */}
+    <div className="space-y-2">
+      <Label htmlFor="encryptionAlgorithm" className="flex items-center gap-2">
+        <Key className="h-4 w-4" />
+        Encryption Algorithm
+      </Label>
+      <Select
+        value={config.encryptionAlgorithm}
+        onValueChange={(value) => handleInputChange("encryptionAlgorithm", value)}
+      >
+        <SelectTrigger id="encryptionAlgorithm">
+          <SelectValue placeholder="Select encryption algorithm" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="AES-128-CBC">AES-128-CBC</SelectItem>
+          <SelectItem value="AES-192-CBC">AES-192-CBC</SelectItem>
+          <SelectItem value="AES-256-CBC">AES-256-CBC</SelectItem>
+          <SelectItem value="AES-128-GCM">AES-128-GCM</SelectItem>
+          <SelectItem value="AES-256-GCM">AES-256-GCM (Recommended)</SelectItem>
+          <SelectItem value="ChaCha20-Poly1305">ChaCha20-Poly1305</SelectItem>
+          <SelectItem value="RSA-2048">RSA-2048</SelectItem>
+          <SelectItem value="RSA-4096">RSA-4096</SelectItem>
+          <SelectItem value="3DES">3DES (Legacy)</SelectItem>
+          <SelectItem value="Blowfish">Blowfish</SelectItem>
+          <SelectItem value="Twofish">Twofish</SelectItem>
+          <SelectItem value="Camellia-256">Camellia-256</SelectItem>
+        </SelectContent>
+      </Select>
+      <p className="text-xs text-muted-foreground">
+        Selected algorithm will be implemented in backend. AES-256-GCM recommended for security.
+      </p>
+    </div>
+
+    {/* Encryption key */}
+    <div className="space-y-2">
+      <Label htmlFor="encryptionKey" className="flex items-center gap-2">
+        <Key className="h-4 w-4" />
+        Encryption Key
+      </Label>
+      <Input
+        id="encryptionKey"
+        type="password"
+        placeholder="Enter key (HEX or ASCII)"
+        value={config.encryptionKey}
+        onChange={(e) => handleInputChange("encryptionKey", e.target.value)}
+      />
+      <p className="text-xs text-muted-foreground">
+        Use the same key format your target app uses. HEX (e.g. 001122...) or normal text.
+      </p>
+    </div>
+  </div>
+)}
+
+
           <Separator />
+
           <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label>Enable Decryption</Label>
-              <p className="text-sm text-muted-foreground">Decrypt incoming responses for analysis</p>
-            </div>
-            <Switch
-              checked={config.enableDecryption}
-              onCheckedChange={(checked) => handleInputChange("enableDecryption", checked)}
-            />
-          </div>
+  <div className="space-y-0.5">
+    <Label>Enable Decryption</Label>
+    <p className="text-sm text-muted-foreground">Decrypt incoming responses for analysis</p>
+  </div>
+  <Switch
+    checked={config.enableDecryption}
+    onCheckedChange={(checked) => handleInputChange("enableDecryption", checked)}
+  />
+</div>
+
+          {config.enableDecryption && (
+  <div className="space-y-4 pl-4 border-l-2 border-primary/20">
+    {/* Decryption algorithm */}
+    <div className="space-y-2">
+      <Label htmlFor="decryptionAlgorithm" className="flex items-center gap-2">
+        <Key className="h-4 w-4" />
+        Decryption Algorithm
+      </Label>
+      <Select
+        value={config.decryptionAlgorithm}
+        onValueChange={(value) => handleInputChange("decryptionAlgorithm", value)}
+      >
+        <SelectTrigger id="decryptionAlgorithm">
+          <SelectValue placeholder="Select decryption algorithm" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="AES-128-CBC">AES-128-CBC</SelectItem>
+          <SelectItem value="AES-192-CBC">AES-192-CBC</SelectItem>
+          <SelectItem value="AES-256-CBC">AES-256-CBC</SelectItem>
+          <SelectItem value="AES-128-GCM">AES-128-GCM</SelectItem>
+          <SelectItem value="AES-256-GCM">AES-256-GCM (Recommended)</SelectItem>
+          <SelectItem value="ChaCha20-Poly1305">ChaCha20-Poly1305</SelectItem>
+          <SelectItem value="RSA-2048">RSA-2048</SelectItem>
+          <SelectItem value="RSA-4096">RSA-4096</SelectItem>
+          <SelectItem value="3DES">3DES (Legacy)</SelectItem>
+          <SelectItem value="Blowfish">Blowfish</SelectItem>
+          <SelectItem value="Twofish">Twofish</SelectItem>
+          <SelectItem value="Camellia-256">Camellia-256</SelectItem>
+        </SelectContent>
+      </Select>
+      <p className="text-xs text-muted-foreground">
+        Selected algorithm will be implemented in backend. Must match encryption algorithm.
+      </p>
+    </div>
+
+    {/* Decryption key */}
+    <div className="space-y-2">
+      <Label htmlFor="decryptionKey" className="flex items-center gap-2">
+        <Key className="h-4 w-4" />
+        Decryption Key
+      </Label>
+      <Input
+        id="decryptionKey"
+        type="password"
+        placeholder="Enter key (HEX or ASCII)"
+        value={config.decryptionKey}
+        onChange={(e) => handleInputChange("decryptionKey", e.target.value)}
+      />
+      <p className="text-xs text-muted-foreground">
+        Must match the encryption key and format used by the server.
+      </p>
+    </div>
+  </div>
+)}
         </CardContent>
       </Card>
 
@@ -1671,6 +1369,18 @@ addons = [UpstreamProxy()]
         </Button>
       </div>
 
+      {errorMessage && (
+        <Card className="border-destructive/50 bg-destructive/10">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Generation Failed
+            </CardTitle>
+            <CardDescription className="text-destructive/90">{errorMessage}</CardDescription>
+          </CardHeader>
+        </Card>
+      )}
+
       {/* Generated Scripts */}
       {generatedScripts && (
         <div className="space-y-4">
@@ -1683,7 +1393,7 @@ addons = [UpstreamProxy()]
               <CardDescription>Your proxy scripts have been generated and are ready for download</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Card className="bg-muted/50">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm">Proxy 1 Script</CardTitle>
@@ -1719,18 +1429,37 @@ addons = [UpstreamProxy()]
                     </Button>
                   </CardContent>
                 </Card>
+
+                <Card className="bg-muted/50">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm">Utility Script</CardTitle>
+                    <CardDescription className="text-xs">Helper functions (e.g., encryption)</CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <Button
+                      onClick={() => downloadScript(generatedScripts.util, "util.py")}
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Download util.py
+                    </Button>
+                  </CardContent>
+                </Card>
               </div>
 
               <div className="bg-muted/30 p-4 rounded-lg">
                 <h4 className="font-medium mb-2">Usage Instructions:</h4>
                 <div className="space-y-1 text-sm text-muted-foreground font-mono">
+                  <p>1. Save all three files (proxy1.py, proxy2.py, util.py) in the same directory.</p>
+                  <p>2. Run Proxy 2 (Burp): mitmdump -s proxy2.py -p {config.proxy2Port}</p>
                   <p>
-                    1. mitmdump -s proxy1.py -p {config.proxy1Port} --mode upstream:http://{config.proxy2Host}:
-                    {config.proxy2Port}
+                    3. Run Proxy 1 (Interceptor): mitmdump -s proxy1.py -p {config.proxy1Port} --mode upstream:http://
+                    {config.proxy2Host}:{config.proxy2Port}
                   </p>
-                  <p>2. mitmdump -s proxy2.py -p {config.proxy2Port}</p>
                   <p>
-                    3. Configure your browser/tool to use proxy: {config.proxy1Host}:{config.proxy1Port}
+                    4. Configure your browser/tool to use proxy: {config.proxy1Host}:{config.proxy1Port}
                   </p>
                 </div>
               </div>
