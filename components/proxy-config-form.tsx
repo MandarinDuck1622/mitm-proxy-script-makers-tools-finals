@@ -375,9 +375,7 @@ export function ProxyConfigForm() {
           <SelectItem value="RSA-2048">RSA-2048</SelectItem>
           <SelectItem value="RSA-4096">RSA-4096</SelectItem>
           <SelectItem value="3DES">3DES (Legacy)</SelectItem>
-          <SelectItem value="Blowfish">Blowfish</SelectItem>
-          <SelectItem value="Twofish">Twofish</SelectItem>
-          <SelectItem value="Camellia-256">Camellia-256</SelectItem>
+          
         </SelectContent>
       </Select>
       <p className="text-xs text-muted-foreground">
@@ -444,10 +442,7 @@ export function ProxyConfigForm() {
           <SelectItem value="RSA-2048">RSA-2048</SelectItem>
           <SelectItem value="RSA-4096">RSA-4096</SelectItem>
           <SelectItem value="3DES">3DES (Legacy)</SelectItem>
-          <SelectItem value="Blowfish">Blowfish</SelectItem>
-          <SelectItem value="Twofish">Twofish</SelectItem>
-          <SelectItem value="Camellia-256">Camellia-256</SelectItem>
-        </SelectContent>
+                  </SelectContent>
       </Select>
       <p className="text-xs text-muted-foreground">
         Selected algorithm will be implemented in backend. Must match encryption algorithm.
